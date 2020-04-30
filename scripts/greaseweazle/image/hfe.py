@@ -75,8 +75,7 @@ class HFE:
 
 
     def append_track(self, flux):
-        bc = Bitcell()
-        bc.clock = 0.0005 / self.bitrate
+        bc = Bitcell(clock = 0.0005 / self.bitrate)
         bc.from_flux(flux)
         bits = bc.revolution_list[0][0]
         bits.bytereverse()

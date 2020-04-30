@@ -10,6 +10,7 @@ import platform
 import ctypes as ct
 from bitarray import bitarray
 from greaseweazle.track import MasterTrack
+from greaseweazle.bitcell import Bitcell
 from greaseweazle import error
 
 class CapsDateTimeExt(ct.Structure):
@@ -175,12 +176,13 @@ class IPF:
         trackbuf.frombytes(bytes(carray))
         trackbuf = trackbuf[:ti.tracklen]
 
-        #for i in range(ti.sectorcnt):
-        #    si = CapsSectorInfo()
-        #    res = self.lib.CAPSGetInfo(ct.byref(si), self.iid,
-        #                               cyl, head, 1, i)
-        #    error.check(res == 0, "Couldn't get sector info")
-        #    range.append((si.datastart, si.datasize))
+        data = []
+        for i in range(ti.sectorcnt):
+            si = CapsSectorInfo()
+            res = self.lib.CAPSGetInfo(ct.byref(si), self.iid,
+                                       cyl, head, 1, i)
+            error.check(res == 0, "Couldn't get sector info")
+            data.append((si.datastart, si.datasize))
 
         weak = []
         for i in range(ti.weakcnt):
@@ -216,7 +218,35 @@ class IPF:
             bit_ticks = timebuf,
             splice = ti.overlap,
             weak = weak)
+        track.data, track.verify = data, ipf_verify
         return track
+
+class VerifyError(Exception):
+    pass
+
+def _ipf_verify(flux, track):
+    bc = Bitcell(clock = 1/track.bitrate)
+    bc.from_flux(flux)
+    bc = bc[:]
+    idx = bc.index_list[0]
+    for s,n in track.weak:
+        e = s+n
+        if bc.bits[s:e] == bc.bits[s+idx:e+idx]:
+            raise VerifyError
+    for s,n in track.data:
+        e = s+n
+        if bc.bits[s:e] != track.bits[s:e]:
+            raise VerifyError
+
+def ipf_verify(drive, track):
+    revs = 3 if track.weak else 2
+    while True:
+        flux = drive.read_track(revs)
+        try:
+            _ipf_verify(flux, track)
+            break
+        except VerifyError:
+            pass
 
 
 # Open and initialise the CAPS library.

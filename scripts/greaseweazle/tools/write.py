@@ -7,10 +7,30 @@
 # This is free and unencumbered software released into the public domain.
 # See the file COPYING for more details, or visit <http://unlicense.org>.
 
-import sys, argparse
+import sys, argparse, platform
 
 from greaseweazle.tools import util
+from greaseweazle import error
 from greaseweazle import usb as USB
+
+class VerifyError(Exception):
+    pass
+
+class VerifyReader:
+    def __init__(self, usb, max_attempts):
+        self.usb, self.attempts, self.max_attempts = usb, 0, max_attempts
+    def read_track(self, revs=3):
+        if self.attempts == self.max_attempts:
+            raise VerifyError
+        self.attempts += 1
+        return self.usb.read_track(revs)
+
+
+def clear_line():
+    if platform.system() == "Windows":
+        print("\r" + " "*50 + "\r", end="")
+    else:
+        print("\r\033[K\r", end="")
 
 
 # Read and parse the image file.
@@ -28,6 +48,8 @@ def open_image(args):
 # Writes the specified image file to floppy disk.
 def write_from_image(usb, args, image):
 
+    max_retry = 3
+    
     # @drive_ticks is the time in Greaseweazle ticks between index pulses.
     # We will adjust the flux intervals per track to allow for this.
     flux = usb.read_track(2)
@@ -37,7 +59,8 @@ def write_from_image(usb, args, image):
     for cyl in range(args.scyl, args.ecyl+1):
         for side in range(0, args.nr_sides):
 
-            print("\rWriting Track %u.%u..." % (cyl, side), end="")
+            clear_line()
+            print("Writing Track %u.%u..." % (cyl, side), end="", flush=True)
             usb.seek(cyl, side)
 
             track = image.get_track(cyl, side, writeout=True)
@@ -60,9 +83,25 @@ def write_from_image(usb, args, image):
                 rem = y - val
                 flux_list.append(val)
 
-            # Encode the flux times for Greaseweazle, and write them out.
-            usb.write_track(flux_list, flux.terminate_at_index)
+            # Write/verify loop
+            retry = 0
+            while True:
 
+                # Encode the flux times for Greaseweazle, and write them out.
+                usb.write_track(flux_list, flux.terminate_at_index)
+
+                try:
+                    # Verify the write, if this functionality is provided.
+                    if hasattr(track, "verify"):
+                        track.verify(VerifyReader(usb, 2), track)
+                    break
+                except VerifyError:
+                    if retry == max_retry:
+                        raise error.Fatal("Verify failure on track %u.%u"
+                                          % (cyl, side))
+                    retry += 1
+                    print("[%u]" % (retry), end="", flush=True)
+                    
     print()
 
 

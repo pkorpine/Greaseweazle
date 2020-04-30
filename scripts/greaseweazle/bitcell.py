@@ -8,10 +8,15 @@
 import binascii
 from bitarray import bitarray
 
+class BitcellSlice:
+    def __init__(self, clock, bits, times, index_list):
+        self.clock, self.bits, self.times = clock, bits, times
+        self.index_list = index_list
+
 class Bitcell:
 
-    def __init__(self):
-        self.clock = 2 / 1000000
+    def __init__(self, clock = 2 / 1000000):
+        self.clock = clock
         self.clock_max_adj = 0.10
         self.pll_period_adj = 0.05
         self.pll_phase_adj = 0.60
@@ -24,6 +29,19 @@ class Bitcell:
             s += str(binascii.hexlify(b.tobytes())) + "\n"
             rev += 1
         return s[:-1]
+
+    def __getitem__(self, i):
+        if isinstance(i, slice):
+            index_list = []
+            bits, times = bitarray(endian='big'), []
+            for x in range(*i.indices(len(self.revolution_list))):
+                b,t = self.revolution_list[x]
+                index_list.append(len(b))
+                bits += b
+                times += t
+            return BitcellSlice(self.clock, bits, times, index_list)
+        b,t = self.revolution_list[i]
+        return BitcellSlice(self.clock, b.copy(), t.copy(), [len(b)])
 
     def from_flux(self, flux):
 

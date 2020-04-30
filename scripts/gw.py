@@ -63,6 +63,7 @@ try:
 except Exception as err:
     print("** FATAL ERROR:")
     print(err)
+    raise
     res = 1
 sys.exit(res)
     
