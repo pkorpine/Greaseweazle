@@ -12,19 +12,56 @@ import sys, argparse
 from greaseweazle.tools import util
 from greaseweazle import usb as USB
 
+import binascii
+from greaseweazle.bitcell import Bitcell
+from bitarray import bitarray
+
 def erase(usb, args):
 
-    # @drive_ticks is the time in Greaseweazle ticks between index pulses.
-    # We will adjust the flux intervals per track to allow for this.
-    flux = usb.read_track(2)
-    drive_ticks = (flux.index_list[0] + flux.index_list[1]) / 2
-    del flux
+    sync = bitarray(endian="big")
+    sync.frombytes(b"\x44\x89")
 
-    for cyl in range(args.scyl, args.ecyl+1):
-        for side in range(0, args.nr_sides):
-            print("\rErasing Track %u.%u..." % (cyl, side), end="")
-            usb.seek(cyl, side)
-            usb.erase_track(drive_ticks * 1.1)
+    gap = bitarray(endian="big")
+    gap.frombytes(b"\xaa\xaa")
+
+    bits = bitarray(endian="big")
+    bits += gap * 100
+    bits += sync
+
+    bits += [0] * 16
+    bits += gap * 2
+    bits += sync
+    
+    flux_list = []
+    flux_ticks = 0
+    for bit in bits:
+        flux_ticks += 2
+        if bit:
+            flux_list.append(flux_ticks)
+            flux_ticks = 0
+    if flux_ticks:
+        flux_list.append(flux_ticks)
+    
+    usb.seek(80, 1)
+    usb.erase_track(72 * 220000)
+    
+    flux_list += [25] + ([0.5]*6) + [4]
+    flux_list += [4] * (16 * 1000)
+
+    flux = []
+    for x in flux_list:
+        flux.append(int(x*72))
+    usb.write_track(flux, False)
+
+    for i in range(20):
+        print(i)
+        flux = usb.read_track(1)
+        bc = Bitcell()
+        bc.from_flux(flux)
+        bits = bc.revolution_list[0][0]
+        bits = bits[:10000]
+        for j in bits.itersearch(sync):
+            print(str(binascii.hexlify(bits[j:j+100].tobytes())), j)
 
     print()
 

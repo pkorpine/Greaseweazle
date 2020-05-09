@@ -63,6 +63,7 @@ try:
 except (IndexError, AssertionError):
     raise
 except Exception as err:
+    raise
     print("** FATAL ERROR:")
     print(err)
     res = 1
