@@ -25,6 +25,9 @@ class Flux:
 
 
     def flux_for_writeout(self):
+        return self.flux()
+
+    def flux(self):
         return self
 
  
