@@ -1,19 +1,17 @@
-from cx_Freeze import setup, Executable
+from setuptools import setup, find_packages
 from greaseweazle import version
 
-buildOptions = dict(
-    packages = ['greaseweazle'],
-    excludes = [],
-    include_msvcr = True)
-
-base = 'Console'
-
-executables = [
-    Executable('gw.py', base=base)
-]
-
-setup(name='Greaseweazle',
-      version = f'{version.major}.{version.minor}',
-      description = '',
-      options = dict(build_exe = buildOptions),
-      executables = executables)
+setup(
+    name="Greaseweazle",
+    description='Tools and USB interface for accessing a floppy drive at the raw flux level',
+    url='https://github.com/keirf/Greaseweazle',
+    version=f'{version.major}.{version.minor}',
+    author="Keir Fraser",
+    author_email="keir.xen@gmail.com",
+    packages=find_packages(),
+    install_requires=[
+        'crcmod',
+        'pyserial',
+        'bitarray',
+    ],
+)
